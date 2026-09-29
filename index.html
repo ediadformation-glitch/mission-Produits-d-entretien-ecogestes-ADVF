@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#075b63">
+  <meta name="description" content="Jeu pédagogique individuel sur les produits d'entretien, la sécurité et les écogestes.">
+  <title>Mission entretien chez Mme Martin</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23075b63'/%3E%3Cpath d='M19 37c9-1 15-8 17-19 8 7 11 15 7 23-4 8-16 10-24 4-5-4-5-12 0-17 2 3 2 6 0 9Z' fill='%23f6b73c'/%3E%3Cpath d='M22 42c7-3 12-8 17-16' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+
+  <section id="profile-screen" class="profile-screen" aria-labelledby="welcome-title">
+    <div class="welcome-card glass">
+      <div class="brand-lockup">
+        <span class="brand-mark">E</span>
+        <span><strong>EDIAD</strong><small>Parcours professionnel</small></span>
+      </div>
+      <p class="eyebrow">Jeu individuel · 30 minutes maximum</p>
+      <h1 id="welcome-title">Mission entretien<br>chez Mme Martin</h1>
+      <p class="welcome-copy">Aidez Axel à observer, choisir le bon produit, travailler en sécurité et intégrer les écogestes.</p>
+
+      <form id="new-profile-form" class="profile-form">
+        <label for="learner-name">Votre prénom ou identifiant</label>
+        <div class="input-row">
+          <input id="learner-name" name="learnerName" minlength="2" maxlength="32" autocomplete="name" placeholder="Ex. Camille" required>
+          <button class="primary-button" type="submit">Commencer</button>
+        </div>
+        <p class="privacy-note"><span aria-hidden="true">🔒</span> Votre partie reste dans ce navigateur. Elle n’est jamais partagée avec les autres apprenants.</p>
+      </form>
+
+      <div id="saved-profiles-wrap" class="saved-profiles-wrap" hidden>
+        <div class="section-rule"><span>Reprendre une partie</span></div>
+        <div id="saved-profiles" class="saved-profiles"></div>
+      </div>
+    </div>
+    <div class="welcome-characters" aria-label="Axel et Mme Martin">
+      <div class="sprite portrait-axel pose-2" role="img" aria-label="Axel, satisfait"></div>
+      <div class="sprite portrait-martin pose-0" role="img" aria-label="Mme Martin, accueillante"></div>
+    </div>
+  </section>
+
+  <div id="app" class="app-shell" hidden>
+    <header class="app-header glass">
+      <button id="brand-home" class="brand-button" type="button" aria-label="Changer de profil">
+        <span class="brand-mark small">E</span>
+        <span><strong>EDIAD</strong><small>Mission entretien</small></span>
+      </button>
+      <div class="header-progress" aria-label="Progression du parcours">
+        <div class="progress-meta"><span id="chapter-label">Étape 1 sur 8</span><strong id="progress-percent">0 %</strong></div>
+        <div class="progress-track"><span id="progress-bar"></span></div>
+      </div>
+      <div class="header-tools">
+        <span class="time-chip"><span aria-hidden="true">◷</span> <span id="elapsed-time">00:00</span></span>
+        <button id="profile-menu-button" class="profile-chip" type="button" aria-haspopup="dialog"><span id="profile-initial">C</span><b id="profile-name">Camille</b></button>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <nav id="chapter-nav" class="chapter-nav glass" aria-label="Étapes du parcours"></nav>
+
+      <section class="game-stage glass" aria-live="polite">
+        <div class="stage-heading">
+          <div>
+            <p id="stage-eyebrow" class="eyebrow">Étape 1 · Observer</p>
+            <h2 id="stage-title">Arrivée chez Mme Martin</h2>
+          </div>
+          <div class="score-chip"><span>Score</span><strong id="score">0</strong><small>/ 100</small></div>
+        </div>
+
+        <div id="activity" class="activity"></div>
+        <div id="feedback" class="feedback" role="status" aria-live="assertive" hidden></div>
+      </section>
+
+      <aside class="character-stage glass" aria-label="Dialogue entre Axel et Mme Martin">
+        <div class="character character-axel">
+          <div id="axel-sprite" class="sprite pose-0" role="img" aria-label="Axel concentré"></div>
+          <span class="character-name">Axel</span>
+        </div>
+        <div id="dialogue" class="dialogue-bubble">
+          <strong id="speaker">Axel</strong>
+          <p id="dialogue-text">« Mme Martin, par quoi dois-je commencer ? »</p>
+        </div>
+        <div class="character character-martin">
+          <div id="martin-sprite" class="sprite pose-0" role="img" aria-label="Mme Martin accueillante"></div>
+          <span class="character-name">Mme Martin</span>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="profile-dialog" class="profile-dialog glass">
+    <form method="dialog">
+      <button class="icon-button close-dialog" value="close" aria-label="Fermer">×</button>
+      <p class="eyebrow">Profil local</p>
+      <h2 id="dialog-profile-title">Votre progression</h2>
+      <p id="dialog-profile-copy"></p>
+      <div class="dialog-actions">
+        <button id="switch-profile" class="secondary-button" value="close" type="button">Changer de profil</button>
+        <button id="reset-profile" class="danger-button" value="close" type="button">Recommencer cette partie</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="ripple-template"><span class="ripple" aria-hidden="true"></span></template>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -636,22 +636,24 @@
   }
 
   function renderMemory() {
-    setDialogue("Mme Martin", "Ces losanges rouges alertent immédiatement. Associez chaque pictogramme au bon comportement.", 0, 1);
+    setDialogue("Mme Martin", "Ces losanges rouges alertent immédiatement. Associez chaque image à sa signification, puis lisez la conduite à tenir.", 0, 1);
     const pairs = [
-      ["toxic", "toxic.png", "Toxique même à faible dose", "Éviter toute inhalation, ingestion ou contact. Suivre strictement l’étiquette."],
-      ["irritant", "irritant.png", "Irritant ou nocif", "Porter les protections indiquées et éviter le contact avec la peau et les yeux."],
-      ["environment", "environment.png", "Dangereux pour l’environnement", "Respecter la dose et la filière d’élimination. Ne pas rejeter dans la nature."],
-      ["flammable", "flammable.png", "Inflammable", "Tenir éloigné des flammes, étincelles et sources de chaleur."]
+      ["toxic", "toxic.png", "Toxique", "Peut empoisonner rapidement, même à faible dose.", "Éviter toute inhalation, ingestion ou contact. Suivre strictement l’étiquette."],
+      ["irritant", "irritant.png", "Irritant ou nocif", "Peut irriter la peau, les yeux ou les voies respiratoires.", "Porter les protections indiquées et éviter le contact avec la peau et les yeux."],
+      ["environment", "environment.png", "Dangereux pour l’environnement", "Peut détruire les organismes aquatiques et polluer durablement.", "Respecter la dose et la filière d’élimination. Ne pas rejeter dans la nature."],
+      ["flammable", "flammable.png", "Inflammable", "Peut s’enflammer au contact d’une flamme, d’une étincelle ou de la chaleur.", "Tenir éloigné des flammes, étincelles et sources de chaleur."],
+      ["explosive", "explosive.png", "Explosif", "Peut exploser sous l’effet d’un choc, de la chaleur ou d’une flamme.", "Manipuler avec précaution et tenir éloigné de toute source de chaleur ou de choc."],
+      ["health", "health.png", "Danger grave pour la santé", "Peut provoquer des effets graves ou durables sur la santé.", "Limiter l’exposition, porter les protections indiquées et respecter strictement l’étiquette."]
     ];
     const cards = pairs.flatMap(pair => [
       { pair: pair[0], type: "image", content: pair[1], label: pair[2] },
-      { pair: pair[0], type: "text", content: pair[2], label: pair[2] }
+      { pair: pair[0], type: "text", content: pair[2], definition: pair[3], label: pair[2] }
     ]).sort(() => Math.random() - .5);
     runtime.flipped = [];
     runtime.matched = new Set();
     runtime.locked = false;
     runtime.attempts = 0;
-    activity.innerHTML = `<p class="activity-intro">Retournez deux cartes. Une paire réunit un pictogramme normalisé et sa signification.</p><div class="memory-grid" id="memory-grid"></div>`;
+    activity.innerHTML = `<p class="activity-intro">Retournez deux cartes pour associer chaque pictogramme à sa signification. Après chaque bonne paire, lisez la fiche qui apparaît pour mémoriser le risque et la conduite à tenir.</p><div class="memory-heading"><h3>Memory des pictogrammes</h3><strong id="memory-progress">0 paire sur ${pairs.length}</strong></div><p id="memory-tip" class="memory-tip" aria-live="polite">Choisissez une première carte, puis cherchez la carte qui lui correspond.</p><div class="memory-grid" id="memory-grid"></div><section class="memory-learning" aria-live="polite"><h3>Ce que vous avez mémorisé</h3><div id="memory-lessons"><p class="memory-empty">Les définitions apparaîtront ici après chaque bonne paire.</p></div></section>`;
     const grid = $("#memory-grid");
     cards.forEach((card, index) => {
       const button = document.createElement("button");
@@ -659,11 +661,22 @@
       button.className = "memory-card";
       button.dataset.index = index;
       button.setAttribute("aria-label", `Carte ${index + 1}, face cachée`);
-      const back = card.type === "image" ? `<img src="${card.content}" alt="${card.label}">` : `<strong>${card.content}</strong>`;
+      const back = card.type === "image"
+        ? `<span class="memory-picto"><img src="${card.content}" alt="Pictogramme : ${card.label}"><small>Pictogramme</small></span>`
+        : `<span class="memory-definition"><strong>${card.content}</strong><small>${card.definition}</small></span>`;
       button.innerHTML = `<span class="memory-card-inner"><span class="memory-face memory-front">?</span><span class="memory-face memory-back">${back}</span></span>`;
+      const image = button.querySelector("img");
+      if (image) image.addEventListener("error", () => {
+        image.replaceWith(Object.assign(document.createElement("span"), { className: "picto-fallback", textContent: "!" }));
+      });
       button.addEventListener("click", () => flip(index, button));
       grid.append(button);
     });
+    function renderMemoryLessons() {
+      const learned = pairs.filter(pair => runtime.matched.has(pair[0]));
+      $("#memory-progress").textContent = `${learned.length} paire${learned.length > 1 ? "s" : ""} sur ${pairs.length}`;
+      $("#memory-lessons").innerHTML = learned.length ? learned.map(pair => `<article class="memory-lesson"><img src="${pair[1]}" alt="${pair[2]}"><div><strong>${pair[2]}</strong><p>${pair[3]}</p><small><b>Conduite à tenir :</b> ${pair[4]}</small></div></article>`).join("") : `<p class="memory-empty">Les définitions apparaîtront ici après chaque bonne paire.</p>`;
+    }
     function flip(index, button) {
       if (runtime.locked || button.classList.contains("flipped") || button.classList.contains("matched")) return;
       button.classList.add("flipped");
@@ -679,7 +692,11 @@
           runtime.matched.add(cards[a].pair);
           runtime.flipped = [];
           runtime.locked = false;
-          setDialogue("Axel", `Je reconnais maintenant le pictogramme : ${pairs.find(p => p[0] === cards[a].pair)[2].toLowerCase()}.`, 2, 4);
+          const learnedPair = pairs.find(p => p[0] === cards[a].pair);
+          $("#memory-tip").className = "memory-tip success";
+          $("#memory-tip").innerHTML = `<strong>✓ Bonne paire : ${learnedPair[2]}.</strong> Lisez sa définition dans la fiche de mémorisation sous les cartes.`;
+          renderMemoryLessons();
+          setDialogue("Axel", `Je reconnais maintenant le pictogramme : ${learnedPair[2].toLowerCase()}.`, 2, 4);
           if (runtime.matched.size === pairs.length) finishMemory();
         }, 450);
       } else {
@@ -687,16 +704,18 @@
           [a,b].forEach(i => grid.children[i].classList.remove("flipped"));
           runtime.flipped = [];
           runtime.locked = false;
+          $("#memory-tip").className = "memory-tip error";
+          $("#memory-tip").innerHTML = `<strong>✕ Ces deux cartes ne correspondent pas.</strong> Observez le symbole noir du pictogramme et relisez la signification avant de réessayer.`;
           setDialogue("Mme Martin", "Ces deux cartes ne vont pas ensemble. Regardez la forme noire au centre du losange.", 1, 1);
         }, 800);
       }
     }
     function finishMemory() {
-      const points = runtime.attempts <= 6 ? 12 : runtime.attempts <= 9 ? 10 : 8;
+      const points = runtime.attempts <= 9 ? 12 : runtime.attempts <= 13 ? 10 : 8;
       completeStage(5, points, pairs.map((pair, index) => ({
-        id: `picto-${index}`, question: `Signification du pictogramme ${pair[2]}`, answer: pair[2], correct: pair[2], explanation: pair[3], success: true
+        id: `picto-${index}`, question: `Signification du pictogramme ${pair[2]}`, answer: pair[3], correct: pair[3], explanation: pair[4], success: true
       })));
-      showFeedback("success", `Les quatre pictogrammes sont associés en ${runtime.attempts} essais.`);
+      showFeedback("success", `Les six pictogrammes sont associés en ${runtime.attempts} essais. Relisez les six fiches avant de continuer.`);
       const actions = document.createElement("div"); actions.className = "activity-actions"; actions.append(nextButton()); activity.append(actions);
     }
   }

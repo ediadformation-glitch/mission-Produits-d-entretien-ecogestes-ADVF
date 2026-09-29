@@ -320,8 +320,10 @@
     runtime.matches = {};
     runtime.activeProduct = null;
     activity.innerHTML = `
-      <p class="activity-intro">Glissez chaque produit vers sa fonction. Sur mobile, touchez d’abord le produit puis sa destination.</p>
-      <div class="product-bank" id="product-bank"></div>
+      <p class="activity-intro">Rangez chaque produit dans la fonction qui lui correspond. La photo du produit apparaîtra directement dans son emplacement.</p>
+      <div class="sorting-steps" aria-label="Mode d’emploi"><span><b>1</b> Choisissez un produit</span><span><b>2</b> Touchez sa fonction</span><span><b>3</b> Vérifiez le rangement</span></div>
+      <div class="product-bank-wrap"><div class="match-board-heading"><h3>Les produits à ranger</h3><small>Touchez un produit pour le sélectionner</small></div><div class="product-bank" id="product-bank"></div></div>
+      <div class="match-board-heading"><h3>Les fonctions</h3><small id="placement-counter">0 produit sur 8 rangé</small></div>
       <div class="match-targets" id="match-targets"></div>
       <div class="activity-actions"><button id="check-products" class="action-button" type="button">Vérifier les associations</button></div>`;
     const bank = $("#product-bank");
@@ -342,28 +344,65 @@
       target.type = "button";
       target.className = "match-target";
       target.dataset.expected = id;
-      target.innerHTML = `<span>${title}</span>${copy}`;
-      target.addEventListener("click", () => runtime.activeProduct && assignProduct(target, runtime.activeProduct));
+      target.innerHTML = `<span class="function-product-slot"><span class="slot-placeholder"><b>+</b><small>Placer ici</small></span></span><span class="function-copy"><span class="function-title">${title}</span><span class="function-description">${copy}</span><span class="match-status"></span></span>`;
+      target.addEventListener("click", () => {
+        if (runtime.activeProduct) assignProduct(target, runtime.activeProduct);
+        else if (runtime.matches[target.dataset.expected]) {
+          const productId = runtime.matches[target.dataset.expected];
+          delete runtime.matches[target.dataset.expected];
+          selectProduct(productId);
+          renderAssignments();
+        }
+      });
       target.addEventListener("dragover", event => event.preventDefault());
       target.addEventListener("drop", event => { event.preventDefault(); assignProduct(target, event.dataTransfer.getData("text/plain")); });
       targetWrap.append(target);
     });
     function selectProduct(id) {
+      Object.keys(runtime.matches).forEach(key => { if (runtime.matches[key] === id) delete runtime.matches[key]; });
       runtime.activeProduct = id;
-      $$(".product-card", bank).forEach(card => card.classList.toggle("active", card.dataset.id === id));
+      renderAssignments();
     }
     function assignProduct(target, productId) {
       Object.keys(runtime.matches).forEach(key => { if (runtime.matches[key] === productId) delete runtime.matches[key]; });
       runtime.matches[target.dataset.expected] = productId;
+      runtime.activeProduct = null;
+      renderAssignments();
+    }
+    function renderAssignments(showCorrections = false) {
+      const placedProducts = new Set(Object.values(runtime.matches));
       $$(".match-target", targetWrap).forEach(item => {
         const match = runtime.matches[item.dataset.expected];
         item.classList.toggle("filled", Boolean(match));
-        const label = match ? products.find(p => p.id === match).name : "";
-        item.querySelector("span").textContent = `${targets.find(t => t[0] === item.dataset.expected)[1]}${label ? ` · ${label}` : ""}`;
+        const slot = item.querySelector(".function-product-slot");
+        const status = item.querySelector(".match-status");
+        if (match) {
+          const product = products.find(p => p.id === match);
+          slot.innerHTML = `<span class="placed-product"><span class="product-thumb prod-${product.sprite}" role="img" aria-label="${product.name}"></span><b>${product.name}</b><small>Touchez pour déplacer</small></span>`;
+          item.setAttribute("aria-label", `${targets.find(t => t[0] === item.dataset.expected)[1]} : ${product.name}`);
+        } else {
+          slot.innerHTML = `<span class="slot-placeholder"><b>+</b><small>Placer ici</small></span>`;
+          item.setAttribute("aria-label", `${targets.find(t => t[0] === item.dataset.expected)[1]} : emplacement vide`);
+        }
+        status.innerHTML = "";
+        if (showCorrections) {
+          const ok = match === item.dataset.expected;
+          const correctProduct = products.find(p => p.id === item.dataset.expected);
+          status.innerHTML = ok
+            ? `<span class="status-ok">✓ Bien rangé</span>`
+            : `<span class="status-fix"><span class="product-thumb prod-${correctProduct.sprite}" aria-hidden="true"></span><span>Correction : <b>${correctProduct.name}</b></span></span>`;
+        }
       });
-      runtime.activeProduct = null;
-      $$(".product-card", bank).forEach(card => card.classList.remove("active"));
+      $$(".product-card", bank).forEach(card => {
+        const active = card.dataset.id === runtime.activeProduct;
+        card.classList.toggle("active", active);
+        card.classList.toggle("placed", placedProducts.has(card.dataset.id));
+        card.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      const count = Object.keys(runtime.matches).length;
+      $("#placement-counter").textContent = `${count} produit${count > 1 ? "s" : ""} sur 8 rangé${count > 1 ? "s" : ""}`;
     }
+    renderAssignments();
     $("#check-products").addEventListener("click", () => {
       if (Object.keys(runtime.matches).length < products.length) return showFeedback("error", "Placez les huit éléments avant de vérifier.");
       let correct = 0;
@@ -374,6 +413,7 @@
         target.disabled = true;
       });
       $$(".product-card", bank).forEach(card => card.disabled = true);
+      renderAssignments(true);
       const entries = targets.map(([id, title, copy]) => ({
         id: `product-${id}`,
         question: `Quel élément convient pour : ${title} ?`,
@@ -392,33 +432,44 @@
 
   function renderWords() {
     const words = [
-      ["DOSAGE", "Respecter la dose évite le gaspillage, un rinçage difficile et la pollution des eaux."],
-      ["RINCAGE", "Le rinçage élimine les résidus. Il est obligatoire pour les surfaces en contact avec les aliments."],
-      ["ETIQUETTE", "Une étiquette lisible indique le rôle, la dose, le temps d’action, les risques et les conduites à tenir."],
-      ["VENTILER", "Une bonne ventilation limite l’exposition aux vapeurs et aux composés organiques volatils."]
+      ["DOSAGE", "Quantité de produit recommandée par le fabricant.", "Respecter la dose évite le gaspillage, un rinçage difficile et la pollution des eaux."],
+      ["RINCAGE", "Étape qui enlève les résidus de produit avec de l’eau claire.", "Le rinçage élimine les résidus. Il est obligatoire pour les surfaces en contact avec les aliments."],
+      ["ETIQUETTE", "Partie de l’emballage à lire avant toute utilisation.", "Une étiquette lisible indique le rôle, la dose, le temps d’action, les risques et les conduites à tenir."],
+      ["VENTILER", "Action qui renouvelle l’air d’une pièce pendant le nettoyage.", "Une bonne ventilation limite l’exposition aux vapeurs et aux composés organiques volatils."]
     ];
     runtime.wordIndex = 0;
     runtime.results = [];
     setDialogue("Axel", "Mme Martin, quels mots dois-je garder en tête pour utiliser les produits sans danger ?", 1, 1);
     function drawWord() {
       const [word] = words[runtime.wordIndex];
-      runtime.guessed = new Set();
+      runtime.guessed = new Set([word[0]]);
       runtime.misses = 0;
-      activity.innerHTML = `<p class="activity-intro">Retrouvez quatre mots de sécurité. Chaque mot débloque une explication professionnelle.</p><div id="hangman"></div>`;
+      activity.innerHTML = `<p class="activity-intro">Trouvez quatre mots de sécurité grâce à leur définition. La première lettre est déjà donnée et vous pouvez demander une lettre supplémentaire.</p><div id="hangman"></div>`;
       updateWord();
     }
     function updateWord() {
-      const [word, explanation] = words[runtime.wordIndex];
+      const [word, clue, explanation] = words[runtime.wordIndex];
       const solved = [...word].every(letter => runtime.guessed.has(letter));
       const failed = runtime.misses >= 6;
       const display = [...word].map(letter => `<span class="letter-slot">${runtime.guessed.has(letter) || failed ? letter : ""}</span>`).join("");
       const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       $("#hangman").innerHTML = `
         <div class="hangman-board">
-          <div class="safety-meter" style="--meter:${Math.max(0, 100 - runtime.misses * 16)}%"><span>${6 - runtime.misses}</span></div>
-          <div><p class="question-count">Mot ${runtime.wordIndex + 1} sur ${words.length}</p><div class="word-display">${display}</div><div class="keyboard">${[...alphabet].map(letter => `<button class="key" type="button" data-letter="${letter}" ${runtime.guessed.has(letter) || solved || failed ? "disabled" : ""}>${letter}</button>`).join("")}</div>${solved || failed ? `<div class="unlock-note"><strong>${word}</strong><br>${explanation}</div>` : ""}</div>
+          <div class="word-help-card"><span>Mot ${runtime.wordIndex + 1} sur ${words.length}</span><strong>${word.length} lettres</strong><small>${6 - runtime.misses} essai${6 - runtime.misses > 1 ? "s" : ""} restant${6 - runtime.misses > 1 ? "s" : ""}</small></div>
+          <div><p class="question-count">Quel mot correspond à cette définition ?</p><div class="word-clue"><b>Indice</b><span>${clue}</span></div><div class="word-display" aria-label="Mot de ${word.length} lettres">${display}</div>${!solved && !failed ? `<div class="word-help-actions"><button id="reveal-letter" class="hint-button" type="button">Révéler une lettre</button><button id="reveal-word" class="hint-button secondary-hint" type="button">Afficher le mot si je suis bloqué</button></div>` : ""}<div class="keyboard">${[...alphabet].map(letter => `<button class="key" type="button" data-letter="${letter}" ${runtime.guessed.has(letter) || solved || failed ? "disabled" : ""}>${letter}</button>`).join("")}</div>${solved || failed ? `<div class="unlock-note"><strong>${word}</strong><br>${explanation}</div>` : ""}</div>
         </div>
         <div class="activity-actions">${solved || failed ? `<button id="next-word" class="action-button" type="button">${runtime.wordIndex === words.length - 1 ? "Terminer l’étape" : "Mot suivant"}</button>` : ""}</div>`;
+      const revealButton = $("#reveal-letter");
+      if (revealButton) revealButton.addEventListener("click", () => {
+        const hiddenLetters = [...new Set([...word].filter(letter => !runtime.guessed.has(letter)))];
+        if (hiddenLetters.length) runtime.guessed.add(hiddenLetters[0]);
+        updateWord();
+      });
+      const revealWordButton = $("#reveal-word");
+      if (revealWordButton) revealWordButton.addEventListener("click", () => {
+        [...word].forEach(letter => runtime.guessed.add(letter));
+        updateWord();
+      });
       $$(".key").forEach(key => key.addEventListener("click", () => {
         const letter = key.dataset.letter;
         runtime.guessed.add(letter);
@@ -456,48 +507,46 @@
 
   function renderSinner() {
     setDialogue("Mme Martin", "Les quatre facteurs travaillent ensemble. Si l’un diminue, vous devez ajuster les autres sans créer de risque.", 0, 0);
-    const factors = ["Dosage", "Température", "Temps d’action", "Action mécanique"];
-    runtime.activeFactor = null;
-    runtime.slots = {};
+    const factors = [
+      ["Dosage", "La juste quantité indiquée sur l’étiquette."],
+      ["Température", "La température adaptée au produit et au support."],
+      ["Temps d’action", "La durée pendant laquelle le produit doit agir."],
+      ["Action mécanique", "Le frottement produit par le geste ou le matériel."]
+    ];
+    runtime.reviewedFactors = new Set();
     runtime.scenario = null;
     activity.innerHTML = `
-      <p class="activity-intro">Placez les quatre leviers dans le cercle, puis résolvez la situation d’Axel.</p>
+      <p class="activity-intro">Le résultat du nettoyage dépend de quatre facteurs. Touchez chaque carte pour lire son rôle, puis résolvez la situation d’Axel.</p>
       <div class="sinner-layout">
-        <div class="sinner-circle"><div class="sinner-core">Résultat<br>du nettoyage</div>${factors.map((_, i) => `<button class="sinner-slot" type="button" data-slot="${i}">Déposer ici</button>`).join("")}</div>
-        <div><div class="factor-bank">${factors.map(factor => `<button class="factor" draggable="true" type="button" data-factor="${factor}">${factor}</button>`).join("")}</div>
-        <div class="scenario-box"><h3>Situation</h3><p>Axel pulvérise le produit puis l’essuie immédiatement. La dose et la température sont correctes. Quel facteur pose problème ?</p><div class="scenario-options">${factors.map(f => `<button class="secondary-button sinner-answer" type="button" data-answer="${f}">${f}</button>`).join("")}</div></div></div>
+        <div class="sinner-diagram" aria-label="Les quatre facteurs du cercle de Sinner"><div class="sinner-result"><small>OBJECTIF</small><strong>Un nettoyage efficace</strong></div><div class="factor-grid">${factors.map(([factor, description], i) => `<button class="factor-card" type="button" data-factor="${factor}" data-description="${description}"><span>${i + 1}</span><strong>${factor}</strong><small>${description}</small><em>Toucher pour retenir</em></button>`).join("")}</div><p id="factor-message" class="factor-message">Commencez par consulter les quatre facteurs.</p></div>
+        <div class="scenario-box"><span class="scenario-label">MISE EN SITUATION</span><h3>Quel facteur Axel a-t-il oublié ?</h3><p>Axel pulvérise le produit puis l’essuie immédiatement. La dose et la température sont correctes.</p><div class="scenario-callout"><b>Le mot important :</b> « immédiatement »</div><div class="scenario-options">${factors.map(([factor]) => `<button class="secondary-button sinner-answer" type="button" data-answer="${factor}">${factor}</button>`).join("")}</div></div>
       </div>
-      <div class="activity-actions"><button id="check-sinner" class="action-button" type="button">Valider le cercle</button></div>`;
-    $$(".factor").forEach(button => {
-      button.addEventListener("click", () => { runtime.activeFactor = button.dataset.factor; $$(".factor").forEach(b => b.classList.toggle("active", b === button)); });
-      button.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", button.dataset.factor));
-    });
-    $$(".sinner-slot").forEach(slot => {
-      slot.addEventListener("click", () => runtime.activeFactor && place(slot, runtime.activeFactor));
-      slot.addEventListener("dragover", event => event.preventDefault());
-      slot.addEventListener("drop", event => { event.preventDefault(); place(slot, event.dataTransfer.getData("text/plain")); });
-    });
-    function place(slot, factor) {
-      Object.keys(runtime.slots).forEach(key => { if (runtime.slots[key] === factor) delete runtime.slots[key]; });
-      runtime.slots[slot.dataset.slot] = factor;
-      $$(".sinner-slot").forEach(item => item.textContent = runtime.slots[item.dataset.slot] || "Déposer ici");
-      runtime.activeFactor = null;
-    }
+      <div class="activity-actions"><button id="show-sinner-answer" class="text-button" type="button">Je suis bloqué : voir la correction</button><button id="check-sinner" class="action-button" type="button">Valider ma réponse</button></div>`;
+    $$(".factor-card").forEach(button => button.addEventListener("click", () => {
+      runtime.reviewedFactors.add(button.dataset.factor);
+      button.classList.add("reviewed");
+      button.querySelector("em").textContent = "✓ Facteur consulté";
+      $("#factor-message").innerHTML = `<strong>${button.dataset.factor} :</strong> ${button.dataset.description}<br><small>${runtime.reviewedFactors.size} facteur${runtime.reviewedFactors.size > 1 ? "s" : ""} consulté${runtime.reviewedFactors.size > 1 ? "s" : ""} sur 4</small>`;
+    }));
     $$(".sinner-answer").forEach(button => button.addEventListener("click", () => {
       runtime.scenario = button.dataset.answer;
       $$(".sinner-answer").forEach(b => b.classList.toggle("selected", b === button));
     }));
-    $("#check-sinner").addEventListener("click", () => {
-      if (Object.keys(runtime.slots).length < 4 || !runtime.scenario) return showFeedback("error", "Complétez le cercle et choisissez une réponse pour la situation.");
-      const scenarioOk = runtime.scenario === "Temps d’action";
-      completeStage(3, scenarioOk ? 12 : 8, [{
-        id: "sinner-factors", question: "Quels sont les quatre facteurs du cercle de Sinner ?", answer: Object.values(runtime.slots).join(", "), correct: factors.join(", "), explanation: "Les quatre facteurs sont interdépendants.", success: true
+    function finishSinner(scenarioOk, usedCorrection = false) {
+      completeStage(3, scenarioOk && !usedCorrection ? 12 : 8, [{
+        id: "sinner-factors", question: "Quels sont les quatre facteurs du cercle de Sinner ?", answer: factors.map(([factor]) => factor).join(", "), correct: factors.map(([factor]) => factor).join(", "), explanation: "Les quatre facteurs sont interdépendants.", success: true
       }, {
-        id: "sinner-scenario", question: "Le produit est essuyé immédiatement : quel facteur manque ?", answer: runtime.scenario, correct: "Temps d’action", explanation: "Les réactions chimiques ne sont pas instantanées. Le temps indiqué sur l’étiquette doit être respecté.", success: scenarioOk
+        id: "sinner-scenario", question: "Le produit est essuyé immédiatement : quel facteur manque ?", answer: usedCorrection ? "Correction affichée" : runtime.scenario, correct: "Temps d’action", explanation: "Les réactions chimiques ne sont pas instantanées. Le temps indiqué sur l’étiquette doit être respecté.", success: scenarioOk
       }]);
-      setDialogue(scenarioOk ? "Axel" : "Mme Martin", scenarioOk ? "Je dois laisser au produit son temps d’action, sans compenser par un surdosage." : "Le facteur manquant était le temps d’action. Augmenter la dose n’aurait pas corrigé cette erreur.", scenarioOk ? 4 : 3, scenarioOk ? 4 : 3);
-      showFeedback(scenarioOk ? "success" : "error", scenarioOk ? "Cercle reconstitué et situation résolue." : "Le cercle est complet. Pour la situation, il fallait respecter le temps d’action.");
+      setDialogue(scenarioOk && !usedCorrection ? "Axel" : "Mme Martin", scenarioOk && !usedCorrection ? "Je dois laisser au produit son temps d’action, sans compenser par un surdosage." : "Le facteur manquant était le temps d’action. Augmenter la dose n’aurait pas corrigé cette erreur.", scenarioOk && !usedCorrection ? 4 : 3, scenarioOk && !usedCorrection ? 4 : 3);
+      showFeedback(scenarioOk && !usedCorrection ? "success" : "error", scenarioOk && !usedCorrection ? "Bonne réponse : Axel doit respecter le temps d’action." : "Correction : il fallait choisir « Temps d’action ». Vous pouvez maintenant continuer.");
       const actions = $(".activity-actions"); actions.innerHTML = ""; actions.append(nextButton());
+    }
+    $("#show-sinner-answer").addEventListener("click", () => finishSinner(false, true));
+    $("#check-sinner").addEventListener("click", () => {
+      if (!runtime.scenario) return showFeedback("error", "Choisissez un facteur, ou utilisez « voir la correction » pour continuer.");
+      const scenarioOk = runtime.scenario === "Temps d’action";
+      finishSinner(scenarioOk);
     });
   }
 
@@ -927,4 +976,3 @@
   renderSavedProfiles();
   registerWebMcp();
 })();
-

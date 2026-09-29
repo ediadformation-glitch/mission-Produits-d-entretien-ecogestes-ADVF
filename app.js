@@ -519,7 +519,7 @@
       <p class="activity-intro">Le résultat du nettoyage dépend de quatre facteurs. Touchez chaque carte pour lire son rôle, puis résolvez la situation d’Axel.</p>
       <div class="sinner-layout">
         <div class="sinner-diagram" aria-label="Les quatre facteurs du cercle de Sinner"><div class="sinner-result"><small>OBJECTIF</small><strong>Un nettoyage efficace</strong></div><div class="factor-grid">${factors.map(([factor, description], i) => `<button class="factor-card" type="button" data-factor="${factor}" data-description="${description}"><span>${i + 1}</span><strong>${factor}</strong><small>${description}</small><em>Toucher pour retenir</em></button>`).join("")}</div><p id="factor-message" class="factor-message">Commencez par consulter les quatre facteurs.</p></div>
-        <div class="scenario-box"><span class="scenario-label">MISE EN SITUATION</span><h3>Quel facteur Axel a-t-il oublié ?</h3><p>Axel pulvérise le produit puis l’essuie immédiatement. La dose et la température sont correctes.</p><div class="scenario-callout"><b>Le mot important :</b> « immédiatement »</div><div class="scenario-options">${factors.map(([factor]) => `<button class="secondary-button sinner-answer" type="button" data-answer="${factor}">${factor}</button>`).join("")}</div></div>
+        <div class="scenario-box"><span class="scenario-label">MISE EN SITUATION</span><h3>Quel facteur Axel a-t-il oublié ?</h3><p>Axel pulvérise le produit puis l’essuie immédiatement. La dose et la température sont correctes.</p><div class="scenario-callout"><b>Le mot important :</b> « immédiatement »</div><div class="scenario-options">${factors.map(([factor]) => `<button class="secondary-button sinner-answer" type="button" data-answer="${factor}">${factor}</button>`).join("")}</div><div id="scenario-feedback" class="scenario-feedback" aria-live="polite">Choisissez une réponse : une explication apparaîtra ici immédiatement.</div></div>
       </div>
       <div class="activity-actions"><button id="show-sinner-answer" class="text-button" type="button">Je suis bloqué : voir la correction</button><button id="check-sinner" class="action-button" type="button">Valider ma réponse</button></div>`;
     $$(".factor-card").forEach(button => button.addEventListener("click", () => {
@@ -530,7 +530,24 @@
     }));
     $$(".sinner-answer").forEach(button => button.addEventListener("click", () => {
       runtime.scenario = button.dataset.answer;
-      $$(".sinner-answer").forEach(b => b.classList.toggle("selected", b === button));
+      const isCorrect = runtime.scenario === "Temps d’action";
+      $$(".sinner-answer").forEach(b => {
+        b.classList.remove("selected", "answer-correct", "answer-wrong");
+        b.removeAttribute("aria-current");
+      });
+      button.classList.add("selected", isCorrect ? "answer-correct" : "answer-wrong");
+      button.setAttribute("aria-current", "true");
+      const wrongHints = {
+        "Dosage": "La situation précise que la dose est correcte.",
+        "Température": "La situation précise que la température est correcte.",
+        "Action mécanique": "Le problème survient avant le frottement : Axel essuie le produit trop tôt."
+      };
+      const message = $("#scenario-feedback");
+      message.className = `scenario-feedback ${isCorrect ? "correct" : "incorrect"}`;
+      message.innerHTML = isCorrect
+        ? `<strong>✓ Bonne réponse : le temps d’action.</strong><span>Axel doit laisser agir le produit pendant la durée indiquée sur l’étiquette avant de l’essuyer.</span>`
+        : `<strong>✕ Ce n’est pas la bonne réponse.</strong><span>${wrongHints[runtime.scenario]} Relisez le mot « immédiatement » puis essayez encore.</span>`;
+      $("#check-sinner").textContent = isCorrect ? "Continuer" : "Valider ma réponse";
     }));
     function finishSinner(scenarioOk, usedCorrection = false) {
       completeStage(3, scenarioOk && !usedCorrection ? 12 : 8, [{

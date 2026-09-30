@@ -641,8 +641,8 @@
       ["toxic", "toxic.png", "Toxique", "Peut empoisonner rapidement, même à faible dose.", "Éviter toute inhalation, ingestion ou contact. Suivre strictement l’étiquette."],
       ["irritant", "irritant.png", "Irritant ou nocif", "Peut irriter la peau, les yeux ou les voies respiratoires.", "Porter les protections indiquées et éviter le contact avec la peau et les yeux."],
       ["environment", "environment.png", "Dangereux pour l’environnement", "Peut détruire les organismes aquatiques et polluer durablement.", "Respecter la dose et la filière d’élimination. Ne pas rejeter dans la nature."],
-      ["flammable", "flammable.png", "Inflammable", "Peut s’enflammer au contact d’une flamme, d’une étincelle ou de la chaleur.", "Tenir éloigné des flammes, étincelles et sources de chaleur."],
-      ["explosive", "explosive.png", "Explosif", "Peut exploser sous l’effet d’un choc, de la chaleur ou d’une flamme.", "Manipuler avec précaution et tenir éloigné de toute source de chaleur ou de choc."],
+      ["flammable", "flammable-v2.png", "Inflammable", "Peut s’enflammer au contact d’une flamme, d’une étincelle ou de la chaleur.", "Tenir éloigné des flammes, étincelles et sources de chaleur."],
+      ["explosive", "explosive-v2.png", "Explosif", "Peut exploser sous l’effet d’un choc, de la chaleur ou d’une flamme.", "Manipuler avec précaution et tenir éloigné de toute source de chaleur ou de choc."],
       ["health", "health.png", "Danger grave pour la santé", "Peut provoquer des effets graves ou durables sur la santé.", "Limiter l’exposition, porter les protections indiquées et respecter strictement l’étiquette."]
     ];
     const cards = pairs.flatMap(pair => [

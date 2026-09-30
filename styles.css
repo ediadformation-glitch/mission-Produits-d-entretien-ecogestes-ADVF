@@ -70,9 +70,9 @@ input { min-width: 0; flex: 1; border: 1px solid rgba(7,91,99,.16); border-radiu
 .welcome-characters .sprite { width: 19rem; height: 31rem; }
 .welcome-characters .portrait-martin { margin-left: -5rem; transform: translateY(2rem); }
 
-.sprite { background-image: url("axel-martin-sprites.png"); background-size: 500% 200%; background-repeat: no-repeat; }
+.sprite { background-image: url("axel-martin-sprites-v2.png"); background-size: 500% 200%; background-repeat: no-repeat; }
 .portrait-axel, .character-axel .sprite { background-position-y: 0%; }
-.portrait-martin, .character-martin .sprite { background-position-y: 100%; }
+.portrait-martin, .character-martin .sprite { background-position-y: 97.5%; }
 .pose-0 { background-position-x: 0%; }
 .pose-1 { background-position-x: 25%; }
 .pose-2 { background-position-x: 50%; }
@@ -232,7 +232,7 @@ input { min-width: 0; flex: 1; border: 1px solid rgba(7,91,99,.16); border-radiu
 .memory-tip.error { border-color: #d86058; color: #87332d; background: #fff0ee; }
 .memory-grid { display: grid; grid-template-columns: repeat(4, minmax(7rem,1fr)); gap: .65rem; perspective: 1000px; }
 .memory-card { min-height: 9.5rem; border: 0; border-radius: .9rem; background: transparent; cursor: pointer; perspective: 800px; }
-.memory-card-inner { position: relative; width: 100%; height: 100%; min-height: 9.5rem; transform-style: preserve-3d; transition: transform .45s ease; }
+.memory-card-inner { position: relative; display: block; width: 100%; height: 100%; min-height: 9.5rem; transform-style: preserve-3d; transition: transform .45s ease; }
 .memory-card.flipped .memory-card-inner, .memory-card.matched .memory-card-inner { transform: rotateY(180deg); }
 .memory-face { position: absolute; inset: 0; display: grid; place-items: center; padding: .7rem; border-radius: .9rem; backface-visibility: hidden; box-shadow: var(--inner), 0 8px 18px rgba(7,59,66,.08); }
 .memory-front { color: white; background: linear-gradient(145deg, var(--petrol), var(--teal)); font: 800 1.5rem/1 Manrope,sans-serif; }

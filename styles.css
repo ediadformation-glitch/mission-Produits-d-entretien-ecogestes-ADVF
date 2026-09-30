@@ -70,7 +70,7 @@ input { min-width: 0; flex: 1; border: 1px solid rgba(7,91,99,.16); border-radiu
 .welcome-characters .sprite { width: 19rem; height: 31rem; }
 .welcome-characters .portrait-martin { margin-left: -5rem; transform: translateY(2rem); }
 
-.sprite { background-image: url("axel-martin-sprites-v2.png"); background-size: 500% 200%; background-repeat: no-repeat; }
+.sprite { background-image: url("axel-martin-sprites-transparent.png"); background-size: 500% 200%; background-repeat: no-repeat; }
 .portrait-axel, .character-axel .sprite { background-position-y: 0%; }
 .portrait-martin, .character-martin .sprite { background-position-y: 97.5%; }
 .pose-0 { background-position-x: 0%; }

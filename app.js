@@ -871,65 +871,169 @@
     return latin1(text).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
   }
 
-  function buildPdf(lines) {
+  function pdfRgb(hex) {
+    const value = hex.replace("#", "");
+    return [0, 2, 4].map(index => (parseInt(value.slice(index, index + 2), 16) / 255).toFixed(3)).join(" ");
+  }
+
+  function prepareReportCharacters() {
+    return new Promise(resolve => {
+      const image = new Image();
+      image.onload = () => {
+        const crop = (column, row) => {
+          const sourceWidth = image.naturalWidth / 5;
+          const sourceHeight = image.naturalHeight / 2;
+          const canvas = document.createElement("canvas");
+          canvas.width = 180;
+          canvas.height = 300;
+          const context = canvas.getContext("2d");
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, column * sourceWidth, row * sourceHeight, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+          const binary = atob(canvas.toDataURL("image/jpeg", .9).split(",")[1]);
+          return { binary, width: canvas.width, height: canvas.height };
+        };
+        resolve({ axel: crop(2, 0), martin: crop(0, 1) });
+      };
+      image.onerror = () => resolve({});
+      image.src = "axel-martin-sprites-transparent.png";
+    });
+  }
+
+  function buildStyledPdf(report, illustrations = {}) {
     const pages = [];
-    for (let i = 0; i < lines.length; i += 46) pages.push(lines.slice(i, i + 46));
+    const palette = {
+      petrol: "#075b63", dark: "#073b42", teal: "#0e7a78", orange: "#f28b3c",
+      ink: "#17333a", muted: "#60787d", line: "#d8e8e7", blue: "#edf7fc",
+      green: "#e9f6ed", greenText: "#24704f", yellow: "#fff6df", red: "#9e3833", redBg: "#fff0ee"
+    };
+    let commands;
+    let y;
+    const text = (value, x, baseline, size = 9, font = "FR", color = palette.ink) => {
+      commands.push(`BT /${font} ${size} Tf ${pdfRgb(color)} rg 1 0 0 1 ${x} ${baseline} Tm (${pdfEscape(value)}) Tj ET`);
+    };
+    const rect = (x, bottom, width, height, fill, stroke = null) => {
+      commands.push("q");
+      if (fill) commands.push(`${pdfRgb(fill)} rg`);
+      if (stroke) commands.push(`${pdfRgb(stroke)} RG 1 w`);
+      commands.push(`${x} ${bottom} ${width} ${height} re ${fill && stroke ? "B" : fill ? "f" : "S"}`);
+      commands.push("Q");
+    };
+    const image = (name, x, bottom, width, height) => commands.push(`q ${width} 0 0 ${height} ${x} ${bottom} cm /${name} Do Q`);
+    const lines = (value, limit) => wrapText(value || "-", limit);
+    const addPage = first => {
+      commands = [];
+      pages.push(commands);
+      rect(0, 0, 595, 842, "#ffffff");
+      rect(0, 828, 595, 14, palette.orange);
+      if (first) {
+        rect(20, 690, 555, 125, "#f2faf9");
+        rect(20, 690, 8, 125, palette.petrol);
+        if (illustrations.axel) image("ImA", 34, 699, 60, 100);
+        if (illustrations.martin) image("ImM", 501, 699, 60, 100);
+        text("BILAN INDIVIDUEL", 118, 785, 10, "FB", palette.teal);
+        text("Mission entretien chez Mme Martin", 118, 758, 20, "FB", palette.dark);
+        text("Un document clair pour comprendre, corriger et retenir.", 118, 737, 10, "FR", palette.muted);
+        rect(36, 608, 523, 60, "#ffffff", palette.line);
+        text(`Apprenant : ${report.name}`, 52, 646, 11, "FB", palette.dark);
+        text(`Date : ${report.date}`, 52, 627, 9, "FR", palette.muted);
+        rect(415, 620, 124, 30, report.score >= 75 ? palette.green : palette.yellow);
+        text(`SCORE  ${report.score} / 100`, 431, 631, 12, "FB", report.score >= 75 ? palette.greenText : palette.dark);
+        text("DÉTAIL DES RÉPONSES", 36, 576, 12, "FB", palette.petrol);
+        y = 558;
+      } else {
+        rect(24, 780, 547, 35, "#f2faf9");
+        rect(24, 780, 7, 35, palette.petrol);
+        text("Mission entretien — réponses et corrections", 45, 792, 12, "FB", palette.dark);
+        y = 762;
+      }
+    };
+    const drawFooter = (pageCommands, pageNumber, pageTotal) => {
+      commands = pageCommands;
+      rect(34, 34, 527, 1, palette.line);
+      text("Repère : salissure · support · risques · méthode · impact", 34, 19, 7.5, "FR", palette.muted);
+      text(`${pageNumber} / ${pageTotal}`, 515, 19, 8, "FB", palette.petrol);
+    };
+    addPage(true);
+    report.entries.forEach((entry, index) => {
+      const question = lines(`${index + 1}. ${entry.question}`, 78);
+      const answer = lines(entry.answer, 88);
+      const correction = lines(entry.correct, 88);
+      const explanation = lines(entry.explanation, 88);
+      const questionHeight = 24 + question.length * 12;
+      const answerHeight = 22 + answer.length * 10;
+      const correctionHeight = 22 + correction.length * 10;
+      const explanationHeight = 22 + explanation.length * 10;
+      const cardHeight = questionHeight + answerHeight + correctionHeight + explanationHeight + 28;
+      if (y - cardHeight < 48) addPage(false);
+      const bottom = y - cardHeight;
+      rect(34, bottom, 527, cardHeight, "#ffffff", palette.line);
+      let cursor = y;
+      rect(34, cursor - questionHeight, 527, questionHeight, "#eaf6f4");
+      question.forEach((line, lineIndex) => text(line, 48, cursor - 20 - lineIndex * 12, 10, "FB", palette.dark));
+      cursor -= questionHeight;
+      const section = (label, content, height, fill, labelColor) => {
+        rect(43, cursor - height + 5, 509, height - 10, fill);
+        text(label, 54, cursor - 14, 7.5, "FB", labelColor);
+        content.forEach((line, lineIndex) => text(line, 54, cursor - 28 - lineIndex * 10, 8.5, "FR", palette.ink));
+        cursor -= height;
+      };
+      section("VOTRE RÉPONSE", answer, answerHeight, palette.blue, palette.teal);
+      section("CORRECTION", correction, correctionHeight, palette.green, palette.greenText);
+      section("POUR RETENIR", explanation, explanationHeight, palette.yellow, "#94611c");
+      const resultFill = entry.success ? palette.green : palette.redBg;
+      const resultText = entry.success ? palette.greenText : palette.red;
+      rect(43, bottom + 7, 112, 18, resultFill);
+      text(entry.success ? "RÉUSSI" : "À REVOIR", 54, bottom + 12, 8, "FB", resultText);
+      y = bottom - 12;
+    });
+    const pageTotal = pages.length;
+    pages.forEach((page, index) => drawFooter(page, index + 1, pageTotal));
+
     const pageCount = pages.length;
-    const fontId = 3 + pageCount * 2;
-    const objects = {};
-    objects[1] = `<< /Type /Catalog /Pages 2 0 R >>`;
+    const regularFontId = 3 + pageCount * 2;
+    const boldFontId = regularFontId + 1;
+    let nextId = boldFontId + 1;
+    const axelId = illustrations.axel ? nextId++ : null;
+    const martinId = illustrations.martin ? nextId++ : null;
+    const objects = { 1: `<< /Type /Catalog /Pages 2 0 R >>` };
     const pageIds = [];
-    pages.forEach((pageLines, index) => {
+    const imageResources = [axelId ? `/ImA ${axelId} 0 R` : "", martinId ? `/ImM ${martinId} 0 R` : ""].filter(Boolean).join(" ");
+    pages.forEach((pageCommands, index) => {
       const pageId = 3 + index * 2;
       const contentId = pageId + 1;
       pageIds.push(`${pageId} 0 R`);
-      const commands = ["BT", "/F1 10 Tf", "14 TL", "52 790 Td"];
-      pageLines.forEach((line, i) => {
-        if (i > 0) commands.push("T*");
-        commands.push(`(${pdfEscape(line)}) Tj`);
-      });
-      commands.push("ET");
-      const stream = commands.join("\n");
-      objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
-      objects[contentId] = `<< /Length ${latin1(stream).length} >>\nstream\n${stream}\nendstream`;
+      const stream = latin1(pageCommands.join("\n"));
+      objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FR ${regularFontId} 0 R /FB ${boldFontId} 0 R >>${imageResources ? ` /XObject << ${imageResources} >>` : ""} >> /Contents ${contentId} 0 R >>`;
+      objects[contentId] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
     });
     objects[2] = `<< /Type /Pages /Kids [${pageIds.join(" ")}] /Count ${pageCount} >>`;
-    objects[fontId] = `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`;
+    objects[regularFontId] = `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`;
+    objects[boldFontId] = `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`;
+    const addJpeg = (id, source) => {
+      if (!id || !source) return;
+      objects[id] = `<< /Type /XObject /Subtype /Image /Width ${source.width} /Height ${source.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${source.binary.length} >>\nstream\n${source.binary}\nendstream`;
+    };
+    addJpeg(axelId, illustrations.axel);
+    addJpeg(martinId, illustrations.martin);
+    const lastId = nextId - 1;
     let pdf = "%PDF-1.4\n";
     const offsets = [0];
-    for (let id = 1; id <= fontId; id++) {
-      offsets[id] = latin1(pdf).length;
+    for (let id = 1; id <= lastId; id++) {
+      offsets[id] = pdf.length;
       pdf += `${id} 0 obj\n${objects[id]}\nendobj\n`;
     }
-    const xref = latin1(pdf).length;
-    pdf += `xref\n0 ${fontId + 1}\n0000000000 65535 f \n`;
-    for (let id = 1; id <= fontId; id++) pdf += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
-    pdf += `trailer\n<< /Size ${fontId + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-    return new Uint8Array([...latin1(pdf)].map(char => char.charCodeAt(0) & 255));
+    const xref = pdf.length;
+    pdf += `xref\n0 ${lastId + 1}\n0000000000 65535 f \n`;
+    for (let id = 1; id <= lastId; id++) pdf += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
+    pdf += `trailer\n<< /Size ${lastId + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    return new Uint8Array([...pdf].map(char => char.charCodeAt(0) & 255));
   }
 
-  function downloadReport() {
+  async function downloadReport() {
     const date = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" }).format(new Date());
-    const lines = [
-      "BILAN INDIVIDUEL - MISSION ENTRETIEN CHEZ MME MARTIN",
-      "",
-      `Apprenant : ${state.name}`,
-      `Date : ${date}`,
-      `Score final : ${scoreTotal()} / 100`,
-      "",
-      "DETAIL DES REPONSES",
-      ""
-    ];
-    state.trace.forEach((entry, index) => {
-      lines.push(`${index + 1}. ${entry.question}`);
-      wrapText(`Votre réponse : ${entry.answer}`).forEach(line => lines.push(line));
-      wrapText(`Bonne réponse : ${entry.correct}`).forEach(line => lines.push(line));
-      wrapText(`Explication : ${entry.explanation}`).forEach(line => lines.push(line));
-      lines.push(`Résultat : ${entry.success ? "Réussi" : "À revoir"}`, "");
-    });
-    lines.push("Repère professionnel : avant d'agir, vérifier la salissure, le support, les risques, la méthode et l'impact.");
-    lines.push("Sources pédagogiques : supports EDIAD Produits de nettoyage et de désinfection et Les écogestes.");
-    const bytes = buildPdf(lines);
+    const illustrations = await prepareReportCharacters();
+    const bytes = buildStyledPdf({ name: state.name, date, score: scoreTotal(), entries: state.trace }, illustrations);
     const blob = new Blob([bytes], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
